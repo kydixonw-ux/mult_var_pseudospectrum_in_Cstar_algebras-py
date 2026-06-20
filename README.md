@@ -20,26 +20,41 @@ mu_Q(lambda) = sqrt(lambda_min(Q_lambda(A))).
 
 ## Install
 
-From this folder:
+One-shot bootstrap from this folder (creates `./.venv` and installs the
+package in editable mode):
+
+```bash
+./setup.sh            # Linux / macOS / Git-Bash
+```
 
 ```powershell
-& 'C:\Users\kahli\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pip install -e .
+powershell -ExecutionPolicy Bypass -File setup.ps1     # Windows PowerShell
+```
+
+Add the optional extras with `--sparse`, `--tensor`, or `--all`
+(`-Sparse` / `-Tensor` / `-All` for the PowerShell script).
+
+Manual install (Python >= 3.10):
+
+```bash
+python -m venv .venv && . .venv/bin/activate     # .venv\Scripts\Activate.ps1 on Windows
+python -m pip install -e .
 ```
 
 The core package only requires NumPy. Optional extras:
 
-```powershell
-python -m pip install -e .[sparse]
-python -m pip install -e .[tensor]
+```bash
+python -m pip install -e .[sparse]    # SciPy sparse-matrix backends
+python -m pip install -e .[tensor]    # SciPy + quimb tensor-network stack
 ```
 
-`sparse` enables SciPy sparse matrices. `tensor` installs the SciPy/quimb stack
-expected by the DMRG bridge into `../readout-hom`.
+`sparse` enables the SciPy sparse-matrix backends; `tensor` installs the
+SciPy/quimb stack used by the optional large-MPO DMRG path.
 
 ## Test
 
-```powershell
-& 'C:\Users\kahli\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m unittest discover -s tests
+```bash
+python -m unittest discover -s tests
 ```
 
 ## Quick Start
@@ -63,8 +78,8 @@ in the paper require Hermitian tuples. For a pure singular-value experiment on
 non-Hermitian matrices, pass `assume_hermitian=False` to the Clifford dense or
 sparse evaluator.
 
-Tensor-network/MPO inputs use the same local convention as `readout-hom`:
-each MPO tensor has shape `(left_bond, right_bond, physical_row, physical_col)`.
+Tensor-network/MPO inputs use the convention that each MPO tensor has shape
+`(left_bond, right_bond, physical_row, physical_col)`.
 The Clifford spinor is appended as one extra MPO site, so the localizer can be
 kept as an MPO:
 
@@ -80,8 +95,9 @@ value, info = clifford_pseudovalue_tensor(
 ```
 
 For small MPOs this contracts exactly with NumPy. For large MPOs,
-`solver="dmrg"` bridges to `../readout-hom/dmrg.py`, which requires the
-optional SciPy/quimb stack used by that project.
+`solver="dmrg"` bridges to an optional external DMRG driver -- any importable
+module exposing a `DMRG` class, supplied via `dmrg_module_path` -- so the core
+package itself needs only NumPy.
 
 ## API Map
 

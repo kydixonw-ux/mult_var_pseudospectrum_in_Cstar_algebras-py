@@ -1,8 +1,8 @@
 """MPO/tensor-network backend for spectral localizers.
 
-The MPO convention follows the local code in ``readout-hom``: each tensor has
-shape ``(left_bond, right_bond, physical_row, physical_col)``. The helpers here
-avoid dense materialization until an exact small-system solve is requested.
+The MPO convention is: each tensor has shape
+``(left_bond, right_bond, physical_row, physical_col)``. The helpers here avoid
+dense materialization until an exact small-system solve is requested.
 """
 
 from __future__ import annotations
@@ -379,29 +379,33 @@ def mpo_to_dense(mpo: Sequence[np.ndarray], *, boundary: str = "auto") -> np.nda
     return _mpo_to_dense_periodic(tensors)
 
 
-def _default_readout_hom_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "readout-hom"
-
-
 def _run_dmrg_on_positive_mpo(
     positive_mpo: Sequence[np.ndarray],
     *,
-    readout_hom_path: str | Path | None = None,
+    dmrg_module_path: str | Path | None = None,
     dmrg_kwargs: dict[str, Any] | None = None,
 ) -> tuple[float, Any]:
-    """Use readout-hom's DMRG driver if its optional dependencies are present."""
+    """Minimise ``<psi|L* L|psi>`` with an optional external DMRG driver.
 
-    path = Path(readout_hom_path) if readout_hom_path is not None else _default_readout_hom_path()
-    if path.is_dir():
-        path_text = str(path)
+    The driver is any importable module exposing a ``DMRG`` class with a
+    ``run(mpo) -> (energy, state)`` method. Point ``dmrg_module_path`` at the
+    directory containing that module (it is prepended to ``sys.path``), or make
+    it importable some other way (installed package, existing ``sys.path``
+    entry). This keeps large-MPO solving optional so the core package stays
+    dependency-free.
+    """
+
+    if dmrg_module_path is not None:
+        path_text = str(Path(dmrg_module_path))
         if path_text not in sys.path:
             sys.path.insert(0, path_text)
     try:
         from dmrg import DMRG  # type: ignore
-    except Exception as exc:  # pragma: no cover - depends on optional deps
+    except Exception as exc:  # pragma: no cover - depends on optional driver
         raise RuntimeError(
-            "DMRG tensor-network solving requires readout-hom plus its optional "
-            "SciPy/quimb dependencies. Use solver='dense' for small MPOs."
+            "DMRG tensor-network solving requires an external DMRG driver -- a "
+            "module exposing a `DMRG` class -- supplied via `dmrg_module_path` "
+            "or importable on sys.path. Use solver='dense' for small MPOs."
         ) from exc
 
     kwargs = dict(dmrg_kwargs or {})
@@ -416,14 +420,15 @@ def clifford_pseudovalue_tensor(
     gammas: Sequence[np.ndarray] | None = None,
     solver: str = "auto",
     max_exact_dim: int = 4096,
-    readout_hom_path: str | Path | None = None,
+    dmrg_module_path: str | Path | None = None,
     dmrg_kwargs: dict[str, Any] | None = None,
 ) -> tuple[float, TensorNetworkSolveInfo]:
     """Return ``mu_C(point)`` from MPO/tensor-network operators.
 
     ``solver='auto'`` contracts the MPO exactly when the total Hilbert-space
-    dimension is at most ``max_exact_dim``. Larger problems use the DMRG bridge
-    from ``readout-hom`` on ``L* L`` if those optional dependencies are present.
+    dimension is at most ``max_exact_dim``. Larger problems fall back to an
+    optional external DMRG driver on ``L* L`` if one is available (see
+    ``dmrg_module_path`` and :func:`_run_dmrg_on_positive_mpo`).
     """
 
     localizer = localizer_mpo(operators, point, gammas=gammas)
@@ -448,7 +453,7 @@ def clifford_pseudovalue_tensor(
     positive = product_mpos([adjoint_mpo(localizer), localizer])
     energy, state = _run_dmrg_on_positive_mpo(
         positive,
-        readout_hom_path=readout_hom_path,
+        dmrg_module_path=dmrg_module_path,
         dmrg_kwargs=dmrg_kwargs,
     )
     value = float(np.sqrt(max(float(np.real(energy)), 0.0)))
