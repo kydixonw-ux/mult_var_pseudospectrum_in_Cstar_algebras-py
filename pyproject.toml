@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multivariable-pseudospectrum"
+version = "0.1.0"
+description = "Dense, sparse, and MPO tools for Clifford and quadratic multivariable pseudospectra."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23"]
+authors = [
+  { name = "readout-project contributors" }
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+sparse = ["scipy>=1.9"]
+tensor = ["scipy>=1.9", "quimb>=1.6"]
+dev = ["scipy>=1.9"]
+
+[tool.setuptools]
+packages = ["pseudospectrum"]
+
+[tool.setuptools.package-data]
+pseudospectrum = ["py.typed"]
